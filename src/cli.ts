@@ -112,7 +112,7 @@ function printLines(lines: CartLine[]): void {
 function printOrder(r: OrderResult): void {
   console.log(`${r.shopName ?? r.shopId}  (address ${r.addressId})`);
   printLines(r.lines);
-  console.log(`Items ${eur(r.itemsTotal)} + delivery ${eur(r.deliveryCost)} = ${eur(r.estimatedTotal)} (cash)`);
+  console.log(`Items ${eur(r.itemsTotal)}, total charged by efood ${eur(r.total)} (cash)`);
   if (r.dryRun) {
     console.log('Dry run: efood accepted the order as valid. Nothing was ordered. Add --yes to place it.');
   } else {
@@ -166,7 +166,7 @@ async function main(): Promise<void> {
         for (const o of list) {
           console.log(`${o.date ?? '?'}  #${o.id}  ${o.shopName} (shop ${o.shopId})  ${eur(o.total)}  ${o.status ?? ''}`);
           for (const it of o.items) {
-            console.log(`    ${it.quantity} x ${it.name} [${it.code}]${it.customisation ? `  ${it.customisation}` : ''}`);
+            console.log(`    ${it.quantity} x ${it.name} [${it.code}]${it.customisation ? `  ${it.customisation.split(/\s*\n\s*/).join(', ')}` : ''}`);
           }
         }
       });

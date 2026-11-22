@@ -72,7 +72,7 @@ export function standardRoutes(over: Record<string, Handler> = {}): Record<strin
     'GET /v3/shops/catalog/product': () => ok(fixture('product')),
     'POST /api/carts/retrieve': () => ({ status: 'success', data: { carts: [{ items: [cartItem()] }] } }),
     'POST /api/carts/delete': () => ({ status: 'success', data: {} }),
-    'POST /api/v1/order/validate/': () => ok({ valid: true }),
+    'POST /api/v1/order/validate/': (c) => ok({ price: c.body.amount, delivery_cost: 0 }),
     'POST /api/v1/order/submit/': () => ok({ order_id: 9001 }),
     ...over,
   };

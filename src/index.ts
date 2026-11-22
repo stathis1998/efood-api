@@ -101,6 +101,8 @@ export interface OrderResult {
   deliveryCost: number;
   /** Items + delivery cost as listed by the shop; efood may add fees on top. */
   estimatedTotal: number;
+  /** What efood will charge, from its own validation of the order (fees included). */
+  total: number;
   /** The shop's own delivery estimate, as text. */
   eta: string | undefined;
   /** Set only when the order was really placed. */
@@ -427,7 +429,7 @@ export class Efood {
       deliveryType: 'delivery',
       paymentMethod: payment,
     });
-    const result: Omit<OrderResult, 'response' | 'orderId'> = {
+    const result: Omit<OrderResult, 'response' | 'orderId' | 'total'> = {
       dryRun,
       shopId,
       shopName: menu.shop.name,
@@ -440,7 +442,15 @@ export class Efood {
     };
 
     const validation = await api.validateOrder(this.client, payload);
-    if (dryRun) return { ...result, response: validation };
+    // efood's own figure is the one that counts: it includes any fees.
+    const total = typeof validation.price === 'number' ? validation.price : estimatedTotal;
+    if (options.maxTotal !== undefined && total > options.maxTotal) {
+      throw new EfoodError(
+        'over_max_total',
+        `efood's total ${total.toFixed(2)} exceeds the limit of ${options.maxTotal.toFixed(2)}.`,
+      );
+    }
+    if (dryRun) return { ...result, total, response: validation };
 
     const submitted = await api.submitOrder(this.client, payload);
     const orderId = String(submitted.order_id ?? asRecord(submitted.order).id ?? '');
@@ -451,11 +461,11 @@ export class Efood {
       shopName: menu.shop.name,
       addressId,
       itemsTotal,
-      estimatedTotal,
+      total,
       orderId,
       response: submitted,
     });
-    return { ...result, orderId, response: submitted };
+    return { ...result, total, orderId, response: submitted };
   }
 
   /** Raw status of a placed order. */

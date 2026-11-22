@@ -1,15 +1,18 @@
 # efood-api
 
-Unofficial efood.gr client for personal use: a TypeScript library, a CLI, and a small HTTP service that Home Assistant can call. No runtime dependencies; Node 20 or newer.
+Unofficial client for efood.gr: a TypeScript library, a command-line tool, and a small HTTP service for automations (anything that can send an HTTP request). No runtime dependencies; Node 20 or newer.
 
-It is not affiliated with efood. It talks to the same endpoints the efood app and website use, which can change without notice.
+With it you can log in, list past orders, browse shops and menus, fill the cart and place an order, either by hand or on a schedule.
+
+It is not affiliated with efood. It talks to the same endpoints the efood app and website use, which can change without notice. Use it with your own account, at your own risk.
 
 ## Status
 
 | Part | State |
 |---|---|
 | Shop list, menu, item options | Works; checked against the live API, no login needed |
-| Login, addresses, past orders, saved cart | Written; not yet run with a real session |
+| Login, addresses, past orders, order status | Works; checked with a real session |
+| Saved cart (add, remove, clear) and dry-run checkout | Works; checked with a real session |
 | Placing an order (cash) | Written; never run for real |
 | Card payment | Not implemented |
 
@@ -25,17 +28,20 @@ Without `npm link`, use `node dist/src/cli.js` in place of `efood`.
 
 ### Log in
 
-efood has no API login that works for Google accounts, so the client reuses your browser session:
+The client reuses the session of your browser, so it works whichever way you sign in (email, Google, Apple, Facebook):
 
 1. Log in on https://www.e-food.gr.
 2. Open the browser console and run `window.app.userSid` (or copy the value of the `sparks-sid` cookie).
 3. Run `efood login` and paste the value.
 
-The session id is stored in `data/state.json`. Treat it like a password. When it stops working, commands fail with `session_expired`; repeat the steps above.
+The session id is stored in `data/state.json`. Treat it like a password: anyone who has it can use your account. Sessions are long-lived (one was still valid after 12 weeks), but efood does not document how long; when one stops working, commands fail with `session_expired` and you repeat the steps above.
 
-## Ordering a daily coffee
+## Example: a repeatable order
+
+The shop id, item and options below are examples; use the ones the commands show you.
 
 ```sh
+efood addresses                        # your saved addresses
 efood shops --q badger                 # find the shop id
 efood menu 4489803 --q freddo          # find the item
 efood options 4489803 "freddo espresso"
@@ -49,13 +55,15 @@ efood fav order coffee                 # dry run: validates, orders nothing
 efood fav order coffee --yes           # places the order, cash on delivery
 ```
 
+Orders go to the account's default address unless you pass `--address <id>`.
+
 You can also build the cart in the efood app and then run `efood fav save`: the cart is efood's own saved cart, shared with the app.
 
 ### Safety rules
 
 - `checkout` and `fav order` only validate unless `--yes` is given (in the library and the service: unless `dryRun` is exactly `false`).
 - A favourite is ordered at most once per calendar day unless `--force`.
-- A favourite has a price limit (`--max-total`, default: the price when saved plus 20%). An order above it is refused.
+- A favourite has a price limit (`--max-total`, default: the price when saved plus 20%). An order is refused when the total efood quotes for it, fees included, is above the limit.
 - An order is refused when the shop is closed, does not deliver to the address, does not take cash, an item is out of stock, or the total is under the shop minimum.
 - Every placed order is appended to `data/orders.log`.
 
@@ -87,12 +95,14 @@ cp .env.example .env     # set EFOOD_API_TOKEN
 efood serve              # http://0.0.0.0:8787
 ```
 
-Or with Docker (the session and favourites live in the volume):
+Settings, from the environment or `.env`:
 
-```sh
-docker build -t efood-api .
-docker run -d --name efood -p 8787:8787 -e EFOOD_API_TOKEN=... -v efood-data:/data efood-api
-```
+| Variable | Meaning | Default |
+|---|---|---|
+| `EFOOD_API_TOKEN` | Token callers must send. Required. | none |
+| `EFOOD_PORT` | Port to listen on | `8787` |
+| `EFOOD_HOST` | Interface to listen on | `0.0.0.0` |
+| `EFOOD_DATA_DIR` | Where the session, favourites and order log are kept | `data/` in the project |
 
 Every request needs `Authorization: Bearer <EFOOD_API_TOKEN>`.
 
@@ -113,7 +123,9 @@ Errors come back as `{"error": "<code>", "message": "..."}`: 400/404 for bad inp
 
 The service has no TLS and one shared token. Keep it on your home network.
 
-### Home Assistant
+### Example: Home Assistant
+
+One way to use the service: order a favourite on a schedule and get notified if the session expires. Replace `EFOOD_HOST` with the machine running `efood serve`.
 
 ```yaml
 # configuration.yaml
@@ -153,7 +165,7 @@ rest:
     - service: notify.notify
       data:
         message: >
-          {% if order.status == 200 %}Coffee ordered, {{ order.content.estimatedTotal }}€.
+          {% if order.status == 200 %}Coffee ordered, {{ order.content.total }}€.
           {% else %}Coffee NOT ordered: {{ order.content.message }}{% endif %}
 
 - alias: "efood session expired"

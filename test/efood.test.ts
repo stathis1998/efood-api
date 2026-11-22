@@ -76,6 +76,7 @@ test('checkout is a dry run by default', async () => {
   assert.equal(r.dryRun, true);
   assert.equal(r.addressId, 77);
   assert.equal(r.estimatedTotal, 3); // 2.50 + 0.50 delivery
+  assert.equal(r.total, 2.5); // what the (fake) validation quoted
   assert.equal(t.count(VALIDATE), 1);
   assert.equal(t.count(SUBMIT), 0);
   // The shop was asked about the delivery address, not in general.
@@ -125,6 +126,13 @@ test('checkout refuses an empty cart', async () => {
   const t = makeEfood(standardRoutes({ 'POST /api/carts/retrieve': () => ({ status: 'success', data: { carts: [] } }) }));
   await t.login();
   await assert.rejects(t.efood.checkout(SHOP, { dryRun: false }), code('empty_cart'));
+});
+
+test('fees that push the quoted total over the limit stop the order', async () => {
+  const t = makeEfood(standardRoutes({ [VALIDATE]: () => ok({ price: 4.1 }) }));
+  await t.login();
+  await assert.rejects(t.efood.checkout(SHOP, { dryRun: false, maxTotal: 4 }), code('over_max_total'));
+  assert.equal(t.count(SUBMIT), 0);
 });
 
 test('a failed validation stops the order', async () => {
