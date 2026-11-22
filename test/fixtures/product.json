@@ -1,0 +1,324 @@
+{
+ "code": "IT_000000000275",
+ "name": "Freddo espresso",
+ "price": 0.1,
+ "is_available": true,
+ "tiers": [
+  {
+   "type": "radio",
+   "name": "Επιλέξτε μέγεθος",
+   "code": 515,
+   "maximum_selections": 1,
+   "shortage": false,
+   "dependent_options": [],
+   "options": [
+    {
+     "name": "Regular",
+     "code": "515.1894",
+     "price": 2.4,
+     "shortage": false,
+     "dependencies": []
+    },
+    {
+     "name": "Grande (με 4 δόσεις espresso)",
+     "code": "515.1895",
+     "price": 3.9,
+     "shortage": false,
+     "dependencies": []
+    }
+   ]
+  },
+  {
+   "type": "radio",
+   "name": "Επιλέξτε ζάχαρη",
+   "code": 945,
+   "maximum_selections": 1,
+   "shortage": false,
+   "dependent_options": [],
+   "options": [
+    {
+     "name": "Πολύ γλυκός",
+     "code": "945.28662",
+     "price": 0,
+     "shortage": false,
+     "dependencies": []
+    },
+    {
+     "name": "Γλυκός",
+     "code": "945.28663",
+     "price": 0,
+     "shortage": false,
+     "dependencies": []
+    },
+    {
+     "name": "Μέτριος προς γλυκό",
+     "code": "945.28664",
+     "price": 0,
+     "shortage": false,
+     "dependencies": []
+    },
+    {
+     "name": "Μέτριος",
+     "code": "945.28665",
+     "price": 0,
+     "shortage": false,
+     "dependencies": []
+    },
+    {
+     "name": "Με ολίγη",
+     "code": "945.28666",
+     "price": 0,
+     "shortage": false,
+     "dependencies": []
+    },
+    {
+     "name": "Σκέτος",
+     "code": "945.28667",
+     "price": 0,
+     "shortage": false,
+     "dependencies": []
+    }
+   ]
+  },
+  {
+   "type": "checkbox",
+   "name": "Επιλέξτε είδος ζάχαρης",
+   "code": 946,
+   "maximum_selections": 1,
+   "shortage": false,
+   "dependent_options": [
+    "945.28662",
+    "945.28663",
+    "945.28664",
+    "945.28665",
+    "945.28666"
+   ],
+   "options": [
+    {
+     "name": "Λευκή ζάχαρη",
+     "code": "946.28668",
+     "price": 0,
+     "shortage": false,
+     "dependencies": [
+      {
+       "code": "945.28662",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28663",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28664",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28665",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28666",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28667",
+       "price": 0,
+       "enabled": false
+      }
+     ]
+    },
+    {
+     "name": "Καστανή ζάχαρη",
+     "code": "946.28669",
+     "price": 0,
+     "shortage": false,
+     "dependencies": [
+      {
+       "code": "945.28662",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28663",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28664",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28665",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28666",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28667",
+       "price": 0,
+       "enabled": false
+      }
+     ]
+    },
+    {
+     "name": "Ζαχαρίνη",
+     "code": "946.28670",
+     "price": 0,
+     "shortage": false,
+     "dependencies": [
+      {
+       "code": "945.28662",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28663",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28664",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28665",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28666",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28667",
+       "price": 0,
+       "enabled": false
+      }
+     ]
+    },
+    {
+     "name": "Stevia",
+     "code": "946.28671",
+     "price": 0,
+     "shortage": false,
+     "dependencies": [
+      {
+       "code": "945.28662",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28663",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28664",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28665",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28666",
+       "price": 0,
+       "enabled": true
+      },
+      {
+       "code": "945.28667",
+       "price": 0,
+       "enabled": false
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "checkbox",
+   "name": "Προσθέστε",
+   "code": 947,
+   "maximum_selections": 0,
+   "shortage": false,
+   "dependent_options": [],
+   "options": [
+    {
+     "name": "Γάλα φρέσκο",
+     "code": "947.28672",
+     "price": 0,
+     "shortage": false,
+     "dependencies": []
+    },
+    {
+     "name": "Γάλα εβαπορέ",
+     "code": "947.28673",
+     "price": 0,
+     "shortage": false,
+     "dependencies": []
+    },
+    {
+     "name": "Γάλα σόγιας",
+     "code": "947.28674",
+     "price": 0.3,
+     "shortage": false,
+     "dependencies": []
+    },
+    {
+     "name": "Γάλα αμυγδάλου",
+     "code": "947.28675",
+     "price": 0.3,
+     "shortage": false,
+     "dependencies": []
+    }
+   ]
+  },
+  {
+   "type": "checkbox",
+   "name": "Προσθέστε extra",
+   "code": 948,
+   "maximum_selections": 0,
+   "shortage": false,
+   "dependent_options": [],
+   "options": [
+    {
+     "name": "Extra δόση espresso",
+     "code": "948.28683",
+     "price": 0.6,
+     "shortage": false,
+     "dependencies": []
+    }
+   ]
+  },
+  {
+   "type": "checkbox",
+   "name": "Επιλογή",
+   "code": 949,
+   "maximum_selections": 0,
+   "shortage": false,
+   "dependent_options": [],
+   "options": [
+    {
+     "name": "Decaffeine",
+     "code": "949.28684",
+     "price": 0,
+     "shortage": false,
+     "dependencies": []
+    }
+   ]
+  }
+ ]
+}

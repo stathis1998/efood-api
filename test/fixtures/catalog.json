@@ -1,0 +1,66 @@
+{
+ "menu": {
+  "categories": [
+   {
+    "name": "Δημοφιλέστερα",
+    "category_slug": "dimofilestera",
+    "items": [
+     {
+      "code": "IT_000000000275",
+      "name": "Freddo espresso",
+      "price": 2.5,
+      "is_available": true,
+      "shortage": false,
+      "has_options": true
+     },
+     {
+      "code": "IT_000000000276",
+      "name": "Freddo cappuccino",
+      "price": 2.7,
+      "is_available": true,
+      "shortage": false,
+      "has_options": true
+     }
+    ]
+   },
+   {
+    "name": "Κρύοι καφέδες",
+    "category_slug": "kryoi-kafedes",
+    "items": [
+     {
+      "code": "IT_000000000275",
+      "name": "Freddo espresso",
+      "price": 2.5,
+      "is_available": true,
+      "shortage": false,
+      "has_options": true
+     },
+     {
+      "code": "IT_000000000276",
+      "name": "Freddo cappuccino",
+      "price": 2.7,
+      "is_available": true,
+      "shortage": false,
+      "has_options": true
+     },
+     {
+      "code": "IT_000000000277",
+      "name": "Freddo cappuccino με φυτική κρέμα",
+      "price": 2.9,
+      "is_available": true,
+      "shortage": false,
+      "has_options": true
+     },
+     {
+      "code": "IT_000000000279",
+      "name": "Freddo flat white",
+      "price": 2.9,
+      "is_available": true,
+      "shortage": false,
+      "has_options": true
+     }
+    ]
+   }
+  ]
+ }
+}

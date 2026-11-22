@@ -1,0 +1,27 @@
+{
+ "shop": {
+  "id": 4489803,
+  "title": "Badger coffee",
+  "payment_methods": {
+   "credit_card": true,
+   "cash": true,
+   "paypal": true,
+   "apple_pay": true,
+   "google_pay": true,
+   "ticket_restaurant": false,
+   "pos_on_delivery": false,
+   "revolutpay": true
+  },
+  "messages": {
+   "delivery_information": "30' - 35'"
+  }
+ },
+ "meta": {
+  "is_open": true,
+  "is_serving": true,
+  "minimum_order_value": 0,
+  "delivery_cost": {
+   "amount": 0.5
+  }
+ }
+}

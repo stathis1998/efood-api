@@ -1,0 +1,26 @@
+{
+  "name": "efood-api",
+  "version": "0.1.0",
+  "description": "Unofficial efood.gr client for personal use: library, CLI and a small HTTP service for Home Assistant.",
+  "type": "module",
+  "private": true,
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "bin": {
+    "efood": "dist/src/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc && node --test \"dist/test/**/*.test.js\"",
+    "efood": "node dist/src/cli.js",
+    "serve": "node dist/src/cli.js serve"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}
