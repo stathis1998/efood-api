@@ -69,7 +69,10 @@ export interface ShopQuery {
 export interface AddToCart {
   /** Item code (IT_...) or name. */
   item: string;
-  /** Option names or codes. Required single-choice groups are filled in if omitted. */
+  /**
+   * Option names or codes. A required group is never guessed: leaving one out
+   * is an error, unless the group has a single option.
+   */
   options?: string[];
   quantity?: number;
   comment?: string;
@@ -91,7 +94,7 @@ export interface OrderOptions {
   card?: string;
   /** Default true: validate and report, do not place the order. */
   dryRun?: boolean;
-  /** Refuse if items + delivery cost exceed this. */
+  /** Refuse if the total (the estimate, then the one efood quotes) exceeds this. */
   maxTotal?: number;
 }
 
@@ -121,7 +124,10 @@ export interface OrderResult {
   deliveryCost: number;
   /** Items + delivery cost as listed by the shop; efood may add fees on top. */
   estimatedTotal: number;
-  /** What efood will charge, from its own validation of the order (fees included). */
+  /**
+   * Dry run: the total efood quotes when validating the order. Placed order:
+   * the amount efood charged, which can include a service fee the quote left out.
+   */
   total: number;
   /** The shop's own delivery estimate, as text. */
   eta: string | undefined;
@@ -531,7 +537,8 @@ export class Efood {
     };
 
     const validation = await api.validateOrder(this.client, payload);
-    // efood's own figure is the one that counts: it includes any fees.
+    // efood's own quote is checked too. It is closer than the estimate, though
+    // a service fee can still be added when the order is placed.
     const total = typeof validation.price === 'number' ? validation.price : estimatedTotal;
     if (options.maxTotal !== undefined && total > options.maxTotal) {
       throw new EfoodError(
@@ -712,7 +719,8 @@ export class Efood {
           card: options.card ?? (payment === 'card' ? fav.cardKey : undefined),
         },
         name,
-        // Recorded as soon as a request went out, so an unclear outcome is not retried the same day.
+        // Recorded once an order exists or may exist, so an unclear outcome is not
+        // retried the same day. Not recorded while the bank still wants a confirmation.
         (orderId) => {
           const state = this.store.state();
           state.lastOrders[name] = { date: today, orderId };

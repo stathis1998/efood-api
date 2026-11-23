@@ -1,6 +1,7 @@
 /**
- * Small HTTP service in front of the library, meant for Home Assistant
- * (`rest_command` + a REST sensor on /health).
+ * Small HTTP service in front of the library, for anything that can send an
+ * HTTP request (for example Home Assistant: `rest_command` plus a REST sensor
+ * on /health).
  *
  * Every route needs `Authorization: Bearer <token>`.
  */

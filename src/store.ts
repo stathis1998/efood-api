@@ -2,7 +2,8 @@
  * Everything this tool keeps on disk, in one data directory:
  *   state.json      session id and the last order placed per favourite
  *   favorites.json  named order templates
- *   orders.log      one JSON line per submitted order
+ *   orders.log      one JSON line per order attempt that was sent, and per
+ *                   order confirmed later at the bank
  * The session id is a login secret: it is never written anywhere else.
  */
 import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
@@ -35,7 +36,7 @@ export interface Favorite {
   /** Last four digits of that card, for display. */
   cardLast4?: string;
   lines: CartLine[];
-  /** Upper bound for items + delivery; an order above it is refused. */
+  /** Upper bound for the order's total; an order quoted above it is refused. */
   maxTotal: number;
   savedAt: string;
 }

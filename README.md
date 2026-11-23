@@ -15,7 +15,7 @@ It is not affiliated with efood. It talks to the same endpoints the efood app an
 | Shop list, menu, item options | Works; checked against the live API, no login needed |
 | Login, addresses, past orders, order status | Works; checked with a real session |
 | Saved cart (add, remove, clear) and dry-run checkout | Works; checked with a real session |
-| Placing an order (cash) | Written; never run for real |
+| Placing an order (cash) | Written; uses the same request as a card order, which works, but has not been run for real itself |
 | Saved cards, dry-run checkout paying by card | Works; checked with a real session |
 | Placing an order (saved card) | Works; one real order placed. When the bank asks for a confirmation (3-D Secure), you approve it in a browser; that path has been seen but not completed for real |
 

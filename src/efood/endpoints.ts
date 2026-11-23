@@ -4,9 +4,11 @@
  * Confidence, as of 2026-11:
  *  - shop list, shop info, catalogue, product (v3): verified live, no login needed.
  *    The older v1 shop/menu endpoints stopped answering anonymous calls.
- *  - account, addresses, history, validate, saved cart: used by 2026 clients.
- *  - saved cards, status: verified live with a real session.
- *  - submit: from the 2019-2021 SDK (kpapadatos/efoodgr), unproven since.
+ *  - account, addresses, history, validate, saved cart, saved cards, status:
+ *    verified live with a real session.
+ *  - submit: verified live with one real card order. It answers with an
+ *    `order_id`, or with a `redirect` to a confirmation page when the bank
+ *    wants the payment approved (3-D Secure). Cash has not been run for real.
  */
 import type { EfoodClient } from './client.js';
 import type { OrderPayload, Raw } from './types.js';
@@ -115,7 +117,11 @@ export function validateOrder(client: EfoodClient, order: OrderPayload): Promise
   return client.request<Raw>('POST', '/api/v1/order/validate/', { auth: true, body: order });
 }
 
-/** Auth: place an order. This is a real purchase. */
+/**
+ * Auth: place an order. This is a real purchase. The answer holds `order_id`
+ * and `information` (with `price`, the amount charged), or `redirect` when the
+ * bank wants the payment confirmed first.
+ */
 export function submitOrder(client: EfoodClient, order: OrderPayload): Promise<Raw> {
   return client.request<Raw>('POST', '/api/v1/order/submit/', { auth: true, body: order });
 }
