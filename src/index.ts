@@ -156,6 +156,41 @@ function localDate(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+/** Spending on one shop, part of `SpendingStats`. */
+export interface ShopSpending {
+  shopId: number | undefined;
+  /** The shop's name on its most recent order. */
+  shopName: string | undefined;
+  orders: number;
+  total: number;
+  average: number;
+  /** Part of the overall total, 0 to 1. */
+  share: number;
+  firstOrder: string | undefined;
+  lastOrder: string | undefined;
+}
+
+/** What `Efood.stats` returns: spending summed over the order history. */
+export interface SpendingStats {
+  orders: number;
+  total: number;
+  average: number;
+  /** Dates of the oldest and newest order counted. */
+  from: string | undefined;
+  to: string | undefined;
+  /** Most money spent first. */
+  shops: ShopSpending[];
+  /** Newest year first. */
+  years: Array<{ year: string; orders: number; total: number }>;
+  /** Orders left out because their status says they were cancelled or rejected. */
+  excluded: number;
+  /** True when the history was longer than this reads, so older orders are missing. */
+  truncated: boolean;
+}
+
+/** The most past orders `stats` reads. */
+const MAX_STATS_ORDERS = 20_000;
+
 /** The most past orders a shop filter reads through before giving up. */
 const MAX_HISTORY_SCAN = 2000;
 
@@ -237,6 +272,84 @@ export class Efood {
       if (orders.length === 0 || asRecord(page).hasNext !== true) break;
     }
     return out.slice(0, limit);
+  }
+
+  /**
+   * How much was spent, per shop and in total, over the whole order history
+   * (or between two dates, given as YYYY-MM-DD, both inclusive). Reads the
+   * history 100 orders at a time, so it takes a request per 100 orders.
+   */
+  async stats(options: { since?: string; until?: string } = {}): Promise<SpendingStats> {
+    for (const [name, value] of Object.entries({ since: options.since, until: options.until })) {
+      if (value !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        throw new EfoodError('bad_request', `"${name}" must be a date like 2026-01-31.`);
+      }
+    }
+    const counted: PastOrder[] = [];
+    let excluded = 0;
+    let read = 0;
+    let truncated = false;
+    for (;;) {
+      const page = await api.getOrderHistory(this.client, 100, read);
+      const orders = listOf(page, 'orders').map(parsePastOrder);
+      read += orders.length;
+      let pastRange = false;
+      for (const o of orders) {
+        const day = (o.date ?? '').slice(0, 10);
+        if (options.until && day > options.until) continue;
+        if (options.since && day < options.since) {
+          // Newest first: everything after this is older still.
+          pastRange = true;
+          continue;
+        }
+        if (/cancel|reject|fail|declin|ακυρ|απορρ/i.test(o.status ?? '')) excluded += 1;
+        else counted.push(o);
+      }
+      if (pastRange || orders.length === 0 || asRecord(page).hasNext !== true) break;
+      if (read >= MAX_STATS_ORDERS) {
+        truncated = true;
+        break;
+      }
+    }
+
+    const sum = (list: PastOrder[]) => round2(list.reduce((s, o) => s + (o.total ?? 0), 0));
+    const total = sum(counted);
+    const group = <K>(key: (o: PastOrder) => K) => {
+      const groups = new Map<K, PastOrder[]>();
+      for (const o of counted) groups.set(key(o), [...(groups.get(key(o)) ?? []), o]);
+      return [...groups.values()];
+    };
+    const shops = group((o) => o.shopId ?? o.shopName)
+      .map((list): ShopSpending => {
+        const spent = sum(list);
+        return {
+          shopId: list[0].shopId,
+          shopName: list[0].shopName,
+          orders: list.length,
+          total: spent,
+          average: round2(spent / list.length),
+          share: total > 0 ? Math.round((spent / total) * 1000) / 1000 : 0,
+          firstOrder: list[list.length - 1].date,
+          lastOrder: list[0].date,
+        };
+      })
+      .sort((a, b) => b.total - a.total || b.orders - a.orders);
+    const years = group((o) => (o.date ?? '').slice(0, 4) || 'unknown').map((list) => ({
+      year: (list[0].date ?? '').slice(0, 4) || 'unknown',
+      orders: list.length,
+      total: sum(list),
+    }));
+    return {
+      orders: counted.length,
+      total,
+      average: counted.length ? round2(total / counted.length) : 0,
+      from: counted[counted.length - 1]?.date,
+      to: counted[0]?.date,
+      shops,
+      years,
+      excluded,
+      truncated,
+    };
   }
 
   /** Cards saved on the account. */

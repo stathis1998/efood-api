@@ -46,6 +46,7 @@ The shop id, item and options below are examples; use the ones the commands show
 ```sh
 efood addresses                        # your saved addresses
 efood orders --shop badger             # past orders from one shop (name or shop id)
+efood stats --since 2026-01-01         # money spent per shop and in total
 efood shops --q badger                 # find the shop id
 efood menu 4489803 --q freddo          # find the item
 efood options 4489803 "freddo espresso"
@@ -97,6 +98,7 @@ const efood = new Efood();                       // loads the saved session
 await efood.setSession(sid);
 await efood.orders({ limit: 10 });
 await efood.orders({ shop: 'badger' });           // or a shop id
+await efood.stats({ since: '2026-01-01' });      // spending per shop, per year and in total
 await efood.shops({ query: 'coffee', openOnly: true });
 await efood.menu(shopId);
 await efood.itemOptions(shopId, 'freddo espresso');
@@ -136,6 +138,7 @@ Every request needs `Authorization: Bearer <EFOOD_API_TOKEN>`.
 | `GET /cards` | Saved payment cards (no tokens) |
 | `GET /orders?limit=20&shop=` | Past orders; `shop` is a shop id or part of a shop name |
 | `GET /orders/:id/status` | Status of a placed order |
+| `GET /stats?since=&until=` | Money spent per shop, per year and in total, over all past orders or between two dates (`YYYY-MM-DD`). Reads the whole history, so it takes a few seconds |
 | `GET /shops?q=&open=true&favorites=true&addressId=` | Shops for an address |
 | `GET /shops/:id/menu` | Shop details and menu |
 | `GET /shops/:id/cart` | The saved cart for a shop |

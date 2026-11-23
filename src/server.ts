@@ -149,6 +149,9 @@ export function createEfoodServer(options: ServerOptions): Server {
     if (key === 'GET /orders' && parts.length === 1) {
       return send(res, 200, await efood.orders({ limit: optNumber(q.get('limit'), 'limit'), shop: q.get('shop') ?? undefined }));
     }
+    if (key === 'GET /stats' && parts.length === 1) {
+      return send(res, 200, await efood.stats({ since: q.get('since') ?? undefined, until: q.get('until') ?? undefined }));
+    }
     if (key === 'GET /orders' && parts.length === 3 && parts[2] === 'status') {
       return send(res, 200, await efood.orderStatus(parts[1]));
     }

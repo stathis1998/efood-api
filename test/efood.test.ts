@@ -62,6 +62,46 @@ test('orders can be filtered by shop id or name, and limit counts the matches', 
   assert.deepEqual(await ids({ shop: 'sushi' }), []);
 });
 
+test('stats sums spending per shop, per year and in total over the whole history', async () => {
+  const order = (id: number, shopId: number, name: string, date: string, price: number, status = 'accepted') => ({
+    id, price, status, submission_date: `${date} 10:00:00`, restaurant: { id: shopId, name }, products: [],
+  });
+  const pages = [
+    [order(6, 10, 'Badger coffee', '2026-11-20', 2.5), order(5, 20, 'Pizza place', '2026-10-01', 14.1), order(4, 10, 'Badger coffee', '2026-03-02', 2.7)],
+    [order(3, 20, 'Pizza place', '2026-02-01', 12, 'canceled'), order(2, 10, 'Badger', '2025-12-31', 2.3), order(1, 30, 'Sushi bar', '2025-05-05', 20.2)],
+  ];
+  const t = makeEfood(
+    standardRoutes({
+      'GET /api/v1/user/orders/history': (c) => {
+        const offset = Number(c.query.get('offset'));
+        return ok({ orders: pages[offset / 3] ?? [], hasNext: offset === 0 });
+      },
+    }),
+  );
+  await t.login();
+
+  const all = await t.efood.stats();
+  assert.deepEqual([all.orders, all.total, all.average, all.excluded, all.truncated], [5, 41.8, 8.36, 1, false]);
+  assert.deepEqual([all.from, all.to], ['2025-05-05 10:00:00', '2026-11-20 10:00:00']);
+  assert.deepEqual(all.shops.map((s) => [s.shopName, s.orders, s.total, s.average]), [
+    ['Sushi bar', 1, 20.2, 20.2],
+    ['Pizza place', 1, 14.1, 14.1],
+    ['Badger coffee', 3, 7.5, 2.5], // grouped by shop id; the newest name wins
+  ]);
+  assert.equal(all.shops[2].share, 0.179);
+  assert.deepEqual(all.years, [
+    { year: '2026', orders: 3, total: 19.3 },
+    { year: '2025', orders: 2, total: 22.5 },
+  ]);
+
+  const year = await t.efood.stats({ since: '2026-01-01', until: '2026-10-31' });
+  assert.deepEqual([year.orders, year.total, year.excluded], [2, 16.8, 1]);
+  const recent = await t.efood.stats({ since: '2026-10-01' });
+  assert.equal(recent.total, 16.6);
+  assert.equal(t.calls.at(-1)?.query.get('offset'), '0'); // stops reading once past the start date
+  await assert.rejects(t.efood.stats({ since: 'last year' }), code('bad_request'));
+});
+
 test('menu and item lookup work without a session', async () => {
   const t = makeEfood(standardRoutes());
   const menu = await t.efood.menu(SHOP);

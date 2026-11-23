@@ -40,6 +40,8 @@ Favourites (saved order templates)
 
 Orders
   efood status <order-id>
+  efood stats [--since 2026-01-01] [--until 2026-12-31] [--top 15]
+                                  money spent per shop and in total, over all past orders
 
 Service
   efood serve [--port 8787] [--host 0.0.0.0]    needs EFOOD_API_TOKEN
@@ -65,6 +67,9 @@ const { values: flags, positionals } = parseArgs({
     help: { type: 'boolean', short: 'h' },
     q: { type: 'string' },
     limit: { type: 'string' },
+    since: { type: 'string' },
+    until: { type: 'string' },
+    top: { type: 'string' },
     shop: { type: 'string' },
     address: { type: 'string' },
     lat: { type: 'string' },
@@ -114,7 +119,7 @@ function fail(message: string): never {
   throw new EfoodError('bad_request', message);
 }
 
-function numFlag(name: 'limit' | 'address' | 'lat' | 'lon' | 'qty' | 'max-total' | 'port'): number | undefined {
+function numFlag(name: 'limit' | 'top' | 'address' | 'lat' | 'lon' | 'qty' | 'max-total' | 'port'): number | undefined {
   const v = flags[name];
   if (v === undefined) return undefined;
   const n = Number(v);
@@ -441,6 +446,35 @@ async function main(): Promise<void> {
         );
       }
       return fail('Use: efood fav save|list|remove|order');
+    }
+    case 'stats': {
+      const s = await efood.stats({ since: flags.since, until: flags.until });
+      return out(s, () => {
+        if (!s.orders) return console.log('No orders in that period.');
+        const top = numFlag('top') ?? 15;
+        const pct = (share: number) => `${(share * 100).toFixed(1)}%`;
+        const shown = top > 0 ? s.shops.slice(0, top) : s.shops;
+        const rest = s.shops.slice(shown.length);
+        const restTotal = rest.reduce((n, x) => n + x.total, 0);
+        console.log(`${bold(String(s.orders))} orders from ${bold(String(s.shops.length))} shops, ${dim(`${(s.from ?? '').slice(0, 10)} to ${(s.to ?? '').slice(0, 10)}`)}\n`);
+        table(
+          [
+            ['SHOP', 'ORDERS', 'SPENT', 'SHARE', 'AVERAGE', 'LAST ORDER'],
+            ...shown.map((x) => [x.shopName, x.orders, eur(x.total), pct(x.share), eur(x.average), (x.lastOrder ?? '').slice(0, 10)]),
+            ...(rest.length
+              ? [[`${rest.length} more shops`, rest.reduce((n, x) => n + x.orders, 0), eur(restTotal), pct(s.total ? restTotal / s.total : 0), '', '']]
+              : []),
+          ],
+          { header: true, styles: [bold, undefined, yellow, dim, undefined, dim] },
+        );
+        if (s.years.length > 1) {
+          console.log('');
+          table([['YEAR', 'ORDERS', 'SPENT'], ...s.years.map((y) => [y.year, y.orders, eur(y.total)])], { header: true, styles: [bold, undefined, yellow] });
+        }
+        console.log(`\nTotal spent ${bold(yellow(eur(s.total)))}, ${eur(s.average)} per order`);
+        if (s.excluded) console.log(dim(`${s.excluded} cancelled or rejected orders are not counted.`));
+        if (s.truncated) console.log(yellow('The history is longer than this command reads; the oldest orders are missing.'));
+      });
     }
     case 'status': {
       console.log(JSON.stringify(await efood.orderStatus(arg(1, 'order id')), null, 2));
