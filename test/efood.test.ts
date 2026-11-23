@@ -37,6 +37,31 @@ test('orders pages through the history until hasNext is false', async () => {
   assert.equal(t.calls.at(-1)?.query.get('offset'), '2');
 });
 
+test('orders can be filtered by shop id or name, and limit counts the matches', async () => {
+  const order = (id: number, shopId: number, name: string) => ({ id, price: 3, restaurant: { id: shopId, name }, products: [] });
+  const pages = [
+    [order(1, 10, 'Badger coffee'), order(2, 20, 'Καφές του Γιώργου'), order(3, 10, 'Badger coffee')],
+    [order(4, 20, 'Καφές του Γιώργου'), order(5, 10, 'Badger coffee'), order(6, 30, 'Pizza place')],
+  ];
+  const t = makeEfood(
+    standardRoutes({
+      'GET /api/v1/user/orders/history': (c) => {
+        const offset = Number(c.query.get('offset'));
+        return ok({ orders: pages[offset / 3] ?? [], hasNext: offset === 0 });
+      },
+    }),
+  );
+  await t.login();
+  const ids = async (o: Parameters<typeof t.efood.orders>[0]) => (await t.efood.orders(o)).map((x) => x.id);
+  assert.deepEqual(await ids({ shop: 10 }), [1, 3, 5]);
+  assert.deepEqual(await ids({ shop: '20' }), [2, 4]);
+  assert.deepEqual(await ids({ shop: 'BADGER' }), [1, 3, 5]);
+  assert.deepEqual(await ids({ shop: 'καφες' }), [2, 4]); // accents and case are ignored
+  assert.deepEqual(await ids({ shop: 'badger', limit: 3 }), [1, 3, 5]);
+  assert.deepEqual(await ids({ shop: 'badger', limit: 2 }), [1, 3]);
+  assert.deepEqual(await ids({ shop: 'sushi' }), []);
+});
+
 test('menu and item lookup work without a session', async () => {
   const t = makeEfood(standardRoutes());
   const menu = await t.efood.menu(SHOP);

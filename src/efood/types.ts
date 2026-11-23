@@ -109,6 +109,44 @@ export function parseAddress(raw: unknown): Address {
   };
 }
 
+// ---------------------------------------------------------------- cards
+
+/** A saved payment card. The payment token is deliberately not part of this. */
+export interface Card {
+  /** Stable identifier of the card on the account. */
+  key: string | undefined;
+  brand: string | undefined;
+  /** Masked number, e.g. "555555******4444". */
+  number: string | undefined;
+  last4: string | undefined;
+  bank: string | undefined;
+  /** "MM-YYYY". */
+  expires: string | undefined;
+  expired: boolean;
+  isDefault: boolean;
+  isActive: boolean;
+}
+
+export function parseCard(raw: unknown, now: Date): Card {
+  const c = asRecord(raw);
+  const number = str(c.card_number);
+  const expires = str(c.expiration_date);
+  const [month, year] = (expires ?? '').split('-').map(Number);
+  // A card is good through the last day of its expiry month.
+  const expired = Number.isFinite(month) && Number.isFinite(year) && new Date(year, month, 1) <= now;
+  return {
+    key: str(c.hashcode),
+    brand: str(c.card_type),
+    number,
+    last4: number?.slice(-4),
+    bank: str(c.bank),
+    expires,
+    expired,
+    isDefault: bool(c.is_default) === true,
+    isActive: bool(c.is_active) !== false,
+  };
+}
+
 // ---------------------------------------------------------------- shops
 
 export interface Shop {
@@ -190,6 +228,7 @@ export interface Menu {
     /** efood's own estimate, as text (e.g. "30' - 35'"). */
     eta: string | undefined;
     hasCash: boolean | undefined;
+    hasCard: boolean | undefined;
   };
   categories: MenuCategory[];
 }
@@ -209,6 +248,7 @@ export function parseMenu(infoRaw: unknown, catalogRaw: unknown, hasCoords: bool
       deliveryCost: num(asRecord(meta.delivery_cost).amount),
       eta: str(asRecord(shop.messages).delivery_information),
       hasCash: bool(asRecord(shop.payment_methods).cash),
+      hasCard: bool(asRecord(shop.payment_methods).credit_card),
     },
     categories: arr(asRecord(asRecord(catalogRaw).menu).categories).map((c) => {
       const cat = asRecord(c);
@@ -327,6 +367,7 @@ export interface OrderPayload {
   amount: number;
   delivery_type: string;
   payment_method: string;
+  /** For card payments: the card's current token. A secret; never log it. */
   payment_token?: string;
   products: CartProduct[];
   coupons: unknown[];

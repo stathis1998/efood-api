@@ -28,6 +28,12 @@ export interface Favorite {
   shopName: string;
   /** Delivery address; when unset the account's default address is used. */
   addressId?: number;
+  /** How to pay; cash when unset. */
+  payment?: 'cash' | 'card';
+  /** For card payment: the stable key of the card. */
+  cardKey?: string;
+  /** Last four digits of that card, for display. */
+  cardLast4?: string;
   lines: CartLine[];
   /** Upper bound for items + delivery; an order above it is refused. */
   maxTotal: number;

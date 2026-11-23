@@ -27,6 +27,10 @@ const STATUS_BY_CODE: Partial<Record<EfoodErrorCode, number>> = {
   over_max_total: 409,
   payment_unavailable: 409,
   already_ordered_today: 409,
+  // Nothing was ordered yet: the bank wants the payment approved at `details.url`.
+  confirmation_required: 409,
+  // The order may or may not exist: the caller must not retry on its own.
+  outcome_unknown: 502,
   // The efood session is a problem with this service's setup, not the caller's token.
   no_session: 503,
   session_expired: 503,
@@ -74,6 +78,12 @@ function optNumber(v: unknown, name: string): number | undefined {
   const n = Number(v);
   if (!Number.isFinite(n)) throw new EfoodError('bad_request', `"${name}" must be a number.`);
   return n;
+}
+
+function paymentOf(v: unknown): 'cash' | 'card' | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (v === 'cash' || v === 'card') return v;
+  throw new EfoodError('bad_request', '"payment" must be "cash" or "card".');
 }
 
 function shopIdOf(v: string): number {
@@ -132,8 +142,11 @@ export function createEfoodServer(options: ServerOptions): Server {
     if (key === 'GET /addresses' && parts.length === 1) {
       return send(res, 200, await efood.addresses());
     }
+    if (key === 'GET /cards' && parts.length === 1) {
+      return send(res, 200, await efood.cards());
+    }
     if (key === 'GET /orders' && parts.length === 1) {
-      return send(res, 200, await efood.orders({ limit: optNumber(q.get('limit'), 'limit') }));
+      return send(res, 200, await efood.orders({ limit: optNumber(q.get('limit'), 'limit'), shop: q.get('shop') ?? undefined }));
     }
     if (key === 'GET /orders' && parts.length === 3 && parts[2] === 'status') {
       return send(res, 200, await efood.orderStatus(parts[1]));
@@ -168,6 +181,8 @@ export function createEfoodServer(options: ServerOptions): Server {
         dryRun: body.dryRun !== false,
         maxTotal: optNumber(body.maxTotal, 'maxTotal'),
         force: body.force === true,
+        payment: paymentOf(body.payment),
+        card: typeof body.card === 'string' ? body.card : undefined,
       });
       const { response: _response, ...summary } = result;
       return send(res, 200, summary);

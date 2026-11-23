@@ -19,6 +19,7 @@ import {
   listOf,
   parseAccount,
   parseAddress,
+  parseCard,
   parseMenu,
   parsePastOrder,
   parseServerCart,
@@ -26,6 +27,7 @@ import {
   round2,
   type Account,
   type Address,
+  type Card,
   type Cart,
   type CartLine,
   type Menu,
@@ -83,12 +85,30 @@ export interface ItemOptions {
 
 export interface OrderOptions {
   addressId?: number;
-  /** Only "cash" is implemented. */
-  payment?: 'cash';
+  /** Cash on delivery (default) or a card saved on the account. */
+  payment?: 'cash' | 'card';
+  /** Which saved card: its last four digits or its key. Default: the default card. */
+  card?: string;
   /** Default true: validate and report, do not place the order. */
   dryRun?: boolean;
   /** Refuse if items + delivery cost exceed this. */
   maxTotal?: number;
+}
+
+/**
+ * A card order the bank wants confirmed (3-D Secure). Carried in the `details`
+ * of a `confirmation_required` error; pass it to `Efood.waitForConfirmation`.
+ */
+export interface PendingConfirmation {
+  /** efood's confirmation page. Short lived; open it in a browser. */
+  url: string;
+  shopId: number;
+  shopName: string | undefined;
+  total: number;
+  /** The favourite being ordered, when there is one. */
+  favorite?: string;
+  /** Recent order ids from before the attempt, to tell the new order apart. */
+  knownOrderIds: number[];
 }
 
 export interface OrderResult {
@@ -105,6 +125,9 @@ export interface OrderResult {
   total: number;
   /** The shop's own delivery estimate, as text. */
   eta: string | undefined;
+  payment: 'cash' | 'card';
+  /** For card payment: the masked number of the card used. */
+  card?: string;
   /** Set only when the order was really placed. */
   orderId?: string;
   /** Raw efood response: validation for a dry run, submission otherwise. */
@@ -117,12 +140,18 @@ export interface FavoriteOrderOptions {
   maxTotal?: number;
   /** Allow a second order of the same favourite on the same day. */
   force?: boolean;
+  /** Override how the favourite is paid, for this order only. */
+  payment?: 'cash' | 'card';
+  card?: string;
 }
 
 function localDate(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
+
+/** The most past orders a shop filter reads through before giving up. */
+const MAX_HISTORY_SCAN = 2000;
 
 export class Efood {
   private readonly client: EfoodClient;
@@ -180,16 +209,66 @@ export class Efood {
   }
 
   /** Past orders, most recent first. */
-  async orders(options: { limit?: number } = {}): Promise<PastOrder[]> {
+  async orders(options: { limit?: number; shop?: number | string } = {}): Promise<PastOrder[]> {
     const limit = options.limit ?? 20;
+    // `shop` is a shop id, or part of a shop name. efood has no such filter,
+    // so the history is read page by page and filtered here; `limit` counts
+    // the orders that match.
+    const wanted = options.shop === undefined || options.shop === '' ? undefined : String(options.shop).trim();
+    const byId = wanted !== undefined && /^\d+$/.test(wanted) ? Number(wanted) : undefined;
+    const byName = wanted === undefined ? '' : norm(wanted);
+    const matches = (o: PastOrder) =>
+      wanted === undefined || (byId !== undefined ? o.shopId === byId : norm(o.shopName ?? '').includes(byName));
+
     const out: PastOrder[] = [];
-    while (out.length < limit) {
-      const page = await api.getOrderHistory(this.client, Math.min(100, limit - out.length), out.length);
+    let read = 0;
+    while (out.length < limit && read < MAX_HISTORY_SCAN) {
+      const pageSize = wanted === undefined ? Math.min(100, limit - out.length) : 100;
+      const page = await api.getOrderHistory(this.client, pageSize, read);
       const orders = listOf(page, 'orders');
-      out.push(...orders.map(parsePastOrder));
+      read += orders.length;
+      out.push(...orders.map(parsePastOrder).filter(matches));
       if (orders.length === 0 || asRecord(page).hasNext !== true) break;
     }
     return out.slice(0, limit);
+  }
+
+  /** Cards saved on the account. */
+  async cards(): Promise<Card[]> {
+    return listOf(await api.getCards(this.client)).map((c) => parseCard(c, this.now()));
+  }
+
+  /**
+   * Pick a saved card and fetch its current payment token. The token is short
+   * lived, so this is called right before an order, never cached.
+   */
+  private async cardForPayment(wanted?: string): Promise<{ card: Card; token: string }> {
+    const raw = listOf(await api.getCards(this.client));
+    const cards = raw.map((c) => parseCard(c, this.now()));
+    const matches = wanted
+      ? cards.filter((c) => c.key === wanted || c.last4 === wanted.trim())
+      : cards.filter((c) => c.isDefault);
+    if (matches.length !== 1) {
+      const known = cards.map((c) => `${c.brand} ${c.number}`).join(', ') || 'none';
+      throw new EfoodError(
+        'payment_unavailable',
+        wanted
+          ? `${matches.length ? 'More than one' : 'No'} saved card matches "${wanted}". Saved cards: ${known}.`
+          : `The account has no default card; name one by its last four digits. Saved cards: ${known}.`,
+      );
+    }
+    const card = matches[0];
+    if (card.expired || !card.isActive) {
+      throw new EfoodError(
+        'payment_unavailable',
+        `Card ${card.number} ${card.expired ? `expired (${card.expires})` : 'is not active'}.`,
+      );
+    }
+    const token = asRecord(raw[cards.indexOf(card)]).id;
+    if (typeof token !== 'string' || !token) {
+      throw new EfoodError('payment_unavailable', `efood returned no payment token for card ${card.number}.`);
+    }
+    return { card, token };
   }
 
   /** A saved address by id, or the default one. */
@@ -372,11 +451,13 @@ export class Efood {
     lines: CartLine[],
     options: OrderOptions,
     label?: string,
+    /** Called once a submit request has gone out and may have created an order. */
+    onSent?: (orderId: string) => void,
   ): Promise<OrderResult> {
     const dryRun = options.dryRun !== false;
     const payment = options.payment ?? 'cash';
-    if (payment !== 'cash') {
-      throw new EfoodError('payment_unavailable', 'Only cash on delivery is implemented.');
+    if (payment !== 'cash' && payment !== 'card') {
+      throw new EfoodError('bad_request', 'Payment must be "cash" or "card".');
     }
     if (lines.length === 0) throw new EfoodError('empty_cart', 'Nothing to order: the cart is empty.');
 
@@ -394,8 +475,11 @@ export class Efood {
     if (menu.shop.isServing === false) {
       throw new EfoodError('shop_closed', `${shopName} is not delivering to this address right now.`);
     }
-    if (menu.shop.hasCash === false) {
+    if (payment === 'cash' && menu.shop.hasCash === false) {
       throw new EfoodError('payment_unavailable', `${shopName} does not accept cash.`);
+    }
+    if (payment === 'card' && menu.shop.hasCard === false) {
+      throw new EfoodError('payment_unavailable', `${shopName} does not accept cards.`);
     }
 
     const items = new Map(menu.categories.flatMap((c) => c.items).map((it) => [it.code, it]));
@@ -424,10 +508,13 @@ export class Efood {
       );
     }
 
+    // Fetched last, right before use: the card token only lives two hours.
+    const paidWith = payment === 'card' ? await this.cardForPayment(options.card) : undefined;
     const payload = compileOrder(shopId, lines, {
       addressId,
       deliveryType: 'delivery',
-      paymentMethod: payment,
+      paymentMethod: paidWith ? 'piraeus.creditcard' : 'cash',
+      paymentToken: paidWith?.token,
     });
     const result: Omit<OrderResult, 'response' | 'orderId' | 'total'> = {
       dryRun,
@@ -439,6 +526,8 @@ export class Efood {
       deliveryCost,
       estimatedTotal,
       eta: menu.shop.eta,
+      payment,
+      card: paidWith?.card.number,
     };
 
     const validation = await api.validateOrder(this.client, payload);
@@ -452,20 +541,93 @@ export class Efood {
     }
     if (dryRun) return { ...result, total, response: validation };
 
-    const submitted = await api.submitOrder(this.client, payload);
-    const orderId = String(submitted.order_id ?? asRecord(submitted.order).id ?? '');
-    this.store.logOrder({
+    const logEntry = {
       time: this.now().toISOString(),
       favorite: label,
       shopId,
       shopName: menu.shop.name,
       addressId,
+      payment,
+      card: paidWith?.card.number,
       itemsTotal,
       total,
-      orderId,
-      response: submitted,
-    });
-    return { ...result, total, orderId, response: submitted };
+    };
+    // A card order may stop at the bank's confirmation page and only appear in
+    // the history afterwards; remember what is there now to recognise it.
+    const knownOrderIds = paidWith
+      ? (await this.orders({ limit: 10 })).flatMap((o) => (o.id === undefined ? [] : [o.id]))
+      : [];
+    let submitted: Raw;
+    try {
+      submitted = await api.submitOrder(this.client, payload);
+    } catch (err) {
+      // A clean refusal from efood means no order. A dropped connection does not:
+      // the request may have arrived, so it must not be retried blindly.
+      if (err instanceof EfoodError && err.code === 'network_error') {
+        this.store.logOrder({ ...logEntry, outcome: 'unknown', error: err.message });
+        onSent?.('');
+        throw new EfoodError(
+          'outcome_unknown',
+          `The order request was sent but the connection failed (${err.message}). Check the efood app before ordering again.`,
+        );
+      }
+      throw err;
+    }
+    const orderId = String(submitted.order_id ?? asRecord(submitted.order).id ?? '');
+    const redirect = typeof submitted.redirect === 'string' && /^https:\/\//.test(submitted.redirect) ? submitted.redirect : undefined;
+    if (!orderId && redirect) {
+      // The bank wants the payment confirmed (3-D Secure). No order exists until
+      // that is done, so the favourite stays free to retry. The link carries a
+      // token, so only its address without the query goes in the log.
+      this.store.logOrder({ ...logEntry, outcome: 'confirmation_required', confirmationPage: redirect.split('?')[0] });
+      const pending: PendingConfirmation = { url: redirect, shopId, shopName: menu.shop.name, total, favorite: label, knownOrderIds };
+      throw new EfoodError(
+        'confirmation_required',
+        'The bank wants this card payment confirmed. Open the confirmation page, approve the payment, then check that the order appears in your orders.',
+        { details: pending },
+      );
+    }
+    this.store.logOrder({ ...logEntry, orderId, response: submitted });
+    onSent?.(orderId);
+    if (!orderId) {
+      throw new EfoodError(
+        'outcome_unknown',
+        'efood accepted the request but returned no order id; the payment may need confirming. Check the efood app before ordering again.',
+        { details: { response: submitted } },
+      );
+    }
+    // What was really charged: efood can add a service fee that its validation did not quote.
+    const charged = asRecord(submitted.information).price;
+    return { ...result, total: typeof charged === 'number' ? charged : total, orderId, response: submitted };
+  }
+
+  /**
+   * After a `confirmation_required` error: wait until the order shows up in the
+   * order history (the user approves the payment meanwhile). Returns the order,
+   * or undefined when it did not appear in time.
+   */
+  async waitForConfirmation(
+    pending: PendingConfirmation,
+    options: { timeoutMs?: number; intervalMs?: number } = {},
+  ): Promise<PastOrder | undefined> {
+    const intervalMs = options.intervalMs ?? 5000;
+    const deadline = Date.now() + (options.timeoutMs ?? 10 * 60_000);
+    const known = new Set(pending.knownOrderIds);
+    for (;;) {
+      const recent = await this.orders({ limit: 10 });
+      const found = recent.find((o) => o.shopId === pending.shopId && o.id !== undefined && !known.has(o.id));
+      if (found) {
+        this.store.logOrder({ time: this.now().toISOString(), favorite: pending.favorite, shopId: pending.shopId, orderId: String(found.id), outcome: 'confirmed' });
+        if (pending.favorite) {
+          const state = this.store.state();
+          state.lastOrders[pending.favorite] = { date: localDate(this.now()), orderId: String(found.id) };
+          this.store.saveState(state);
+        }
+        return found;
+      }
+      if (Date.now() + intervalMs > deadline) return undefined;
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
   }
 
   /** Raw status of a placed order. */
@@ -489,7 +651,7 @@ export class Efood {
     saveFromCart: async (
       name: string,
       shopId: number,
-      options: { addressId?: number; maxTotal?: number } = {},
+      options: { addressId?: number; maxTotal?: number; payment?: 'cash' | 'card'; card?: string } = {},
     ): Promise<Favorite> => {
       if (!/^[\w-]+$/.test(name)) {
         throw new EfoodError('bad_request', 'Favourite names may use letters, digits, "-" and "_" only.');
@@ -499,11 +661,16 @@ export class Efood {
         throw new EfoodError('empty_cart', `The saved cart for shop ${shopId} is empty.`);
       }
       const { shop } = await this.menu(shopId);
+      // Resolve the card now so a typo fails at save time, and store its stable key.
+      const card = options.payment === 'card' ? (await this.cardForPayment(options.card)).card : undefined;
       const fav: Favorite = {
         name,
         shopId,
         shopName: shop.name ?? `Shop ${shopId}`,
         addressId: options.addressId,
+        payment: options.payment ?? 'cash',
+        cardKey: card?.key,
+        cardLast4: card?.last4,
         lines,
         // Default limit: today's price plus 20% headroom for price changes.
         maxTotal: options.maxTotal ?? round2((total + (shop.deliveryCost ?? 0)) * 1.2),
@@ -533,18 +700,25 @@ export class Efood {
           `"${name}" was already ordered today (order ${last.orderId}). Use force to order again.`,
         );
       }
-      const result = await this.placeOrder(
+      const payment = options.payment ?? fav.payment ?? 'cash';
+      return this.placeOrder(
         fav.shopId,
         fav.lines,
-        { addressId: fav.addressId, dryRun, maxTotal: options.maxTotal ?? fav.maxTotal },
+        {
+          addressId: fav.addressId,
+          dryRun,
+          maxTotal: options.maxTotal ?? fav.maxTotal,
+          payment,
+          card: options.card ?? (payment === 'card' ? fav.cardKey : undefined),
+        },
         name,
+        // Recorded as soon as a request went out, so an unclear outcome is not retried the same day.
+        (orderId) => {
+          const state = this.store.state();
+          state.lastOrders[name] = { date: today, orderId };
+          this.store.saveState(state);
+        },
       );
-      if (!dryRun) {
-        const state = this.store.state();
-        state.lastOrders[name] = { date: today, orderId: result.orderId ?? '' };
-        this.store.saveState(state);
-      }
-      return result;
     },
   };
 }

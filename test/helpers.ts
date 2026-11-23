@@ -74,6 +74,7 @@ export function standardRoutes(over: Record<string, Handler> = {}): Record<strin
     'POST /api/carts/delete': () => ({ status: 'success', data: {} }),
     'POST /api/v1/order/validate/': (c) => ok({ price: c.body.amount, delivery_cost: 0 }),
     'POST /api/v1/order/submit/': () => ok({ order_id: 9001 }),
+    'GET /api/v1/user/orders/history': () => ok({ orders: [], hasNext: false }),
     ...over,
   };
 }

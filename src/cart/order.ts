@@ -7,6 +7,7 @@ export interface CompileOptions {
   addressId: number;
   deliveryType: 'delivery' | 'pickup';
   paymentMethod: string;
+  paymentToken?: string;
 }
 
 export function compileOrder(
@@ -26,7 +27,7 @@ export function compileOrder(
     offer: l.offer,
     description: l.description,
   }));
-  return {
+  const order: OrderPayload = {
     restaurant_id: shopId,
     address_id: opts.addressId,
     amount: round2(products.reduce((s, p) => s + p.total, 0)),
@@ -37,4 +38,6 @@ export function compileOrder(
     discount: [],
     created: '',
   };
+  if (opts.paymentToken) order.payment_token = opts.paymentToken;
+  return order;
 }

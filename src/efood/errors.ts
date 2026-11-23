@@ -23,6 +23,8 @@ export type EfoodErrorCode =
   | 'below_minimum'
   | 'over_max_total'
   | 'payment_unavailable'
+  | 'confirmation_required'
+  | 'outcome_unknown'
   | 'already_ordered_today';
 
 export interface EfoodErrorInfo {

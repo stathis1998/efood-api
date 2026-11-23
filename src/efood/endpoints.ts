@@ -5,7 +5,8 @@
  *  - shop list, shop info, catalogue, product (v3): verified live, no login needed.
  *    The older v1 shop/menu endpoints stopped answering anonymous calls.
  *  - account, addresses, history, validate, saved cart: used by 2026 clients.
- *  - submit, status: from the 2019-2021 SDK (kpapadatos/efoodgr), unproven since.
+ *  - saved cards, status: verified live with a real session.
+ *  - submit: from the 2019-2021 SDK (kpapadatos/efoodgr), unproven since.
  */
 import type { EfoodClient } from './client.js';
 import type { OrderPayload, Raw } from './types.js';
@@ -75,6 +76,15 @@ export function getProduct(client: EfoodClient, shopId: number, itemCode: string
   return client.request<Raw>('GET', '/v3/shops/catalog/product', {
     query: { shop_id: shopId, item_code: itemCode },
   });
+}
+
+/**
+ * Auth: saved cards. Each card's `id` is a signed token that is reissued on
+ * every call and expires after two hours; it is what an order pays with.
+ * `hashcode` is the stable identifier of the card.
+ */
+export function getCards(client: EfoodClient): Promise<unknown> {
+  return client.request<unknown>('GET', '/api/v1/ext/piraeus/methods/', { auth: true });
 }
 
 /** Auth: read the cart efood has saved for one shop. Note the body key: `shopId`. */
