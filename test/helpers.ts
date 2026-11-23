@@ -1,3 +1,4 @@
+import { pino, type Logger } from 'pino';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -79,9 +80,17 @@ export function standardRoutes(over: Record<string, Handler> = {}): Record<strin
   };
 }
 
-export function makeEfood(routes: Record<string, Handler>, options: { session?: boolean; now?: () => Date } = {}) {
+/** A logger that keeps its lines in memory, at the most detailed level. */
+export function memoryLogger() {
+  const lines: Array<Record<string, any>> = [];
+  const raw: string[] = [];
+  const logger = pino({ level: 'trace', base: undefined }, { write: (s: string) => (raw.push(s), lines.push(JSON.parse(s))) });
+  return { logger, lines, text: () => raw.join('') };
+}
+
+export function makeEfood(routes: Record<string, Handler>, options: { session?: boolean; now?: () => Date; logger?: Logger } = {}) {
   const fake = fakeFetch(routes);
   const dataDir = mkdtempSync(join(tmpdir(), 'efood-test-'));
-  const efood = new Efood({ dataDir, fetch: fake.fetch, minRequestIntervalMs: 0, now: options.now });
+  const efood = new Efood({ dataDir, fetch: fake.fetch, minRequestIntervalMs: 0, now: options.now, logger: options.logger });
   return { efood, dataDir, ...fake, login: () => efood.setSession('sid-123') };
 }

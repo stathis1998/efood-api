@@ -11,9 +11,10 @@
  */
 import { describeTiers, norm, resolveSelections, type CatalogTier } from './cart/builder.js';
 import { compileOrder } from './cart/order.js';
-import { DEFAULT_BASE_URL, DEFAULT_USER_AGENT, EfoodClient } from './efood/client.js';
+import { DEFAULT_BASE_URL, DEFAULT_USER_AGENT, EfoodClient, type RequestStats } from './efood/client.js';
 import * as api from './efood/endpoints.js';
 import { EfoodError } from './efood/errors.js';
+import { createLogger, logOptionsFromEnv, type Logger } from './log.js';
 import {
   asRecord,
   listOf,
@@ -43,6 +44,8 @@ export type { EfoodErrorCode } from './efood/errors.js';
 export type * from './efood/types.js';
 export type { Favorite, LastOrder } from './store.js';
 export type { CatalogTier } from './cart/builder.js';
+export type { RequestStats } from './efood/client.js';
+export { createLogger, logOptionsFromEnv, LOG_LEVELS, type LogLevel, type LogOptions, type Logger } from './log.js';
 
 export interface EfoodOptions {
   /** Where the session, favourites and order log live. */
@@ -53,6 +56,11 @@ export interface EfoodOptions {
   /** Injectable for tests. */
   fetch?: typeof fetch;
   now?: () => Date;
+  /**
+   * Where to log. Default: a logger set up from `EFOOD_LOG_LEVEL`,
+   * `EFOOD_LOG_FILE` and `EFOOD_LOG_FORMAT`, which logs nothing when no level is set.
+   */
+  logger?: Logger;
 }
 
 export interface ShopQuery {
@@ -198,8 +206,10 @@ export class Efood {
   private readonly client: EfoodClient;
   private readonly store: Store;
   private readonly now: () => Date;
+  readonly log: Logger;
 
   constructor(options: EfoodOptions = {}) {
+    this.log = options.logger ?? createLogger(logOptionsFromEnv());
     this.store = new Store(options.dataDir ?? defaultDataDir());
     this.now = options.now ?? (() => new Date());
     this.client = new EfoodClient({
@@ -208,8 +218,14 @@ export class Efood {
       minRequestIntervalMs: options.minRequestIntervalMs ?? 350,
       acceptLanguage: options.lang === 'en' ? 'en-US,en;q=0.9' : 'el-GR,el;q=0.9',
       fetch: options.fetch,
+      logger: this.log,
     });
     this.client.setSessionId(this.store.state().sessionId ?? null);
+  }
+
+  /** How many efood calls this instance has made, in total and per endpoint. */
+  requestStats(): RequestStats {
+    return this.client.stats();
   }
 
   // ------------------------------------------------------------ session
@@ -231,8 +247,10 @@ export class Efood {
         sessionId: sid,
         sessionSavedAt: this.now().toISOString(),
       });
+      this.log.info('new efood session checked and saved');
       return account;
     } catch (err) {
+      this.log.warn({ error: err instanceof EfoodError ? err.code : String(err) }, 'new efood session rejected; keeping the previous one');
       this.client.setSessionId(previous);
       throw err;
     }
@@ -659,7 +677,12 @@ export class Efood {
         `efood's total ${total.toFixed(2)} exceeds the limit of ${options.maxTotal.toFixed(2)}.`,
       );
     }
-    if (dryRun) return { ...result, total, response: validation };
+    const about = { favorite: label, shopId, shopName: menu.shop.name, addressId, payment, card: paidWith?.card.number, itemsTotal, total };
+    if (dryRun) {
+      this.log.info(about, 'dry run: efood accepted the order as valid, nothing ordered');
+      return { ...result, total, response: validation };
+    }
+    this.log.info(about, 'placing order');
 
     const logEntry = {
       time: this.now().toISOString(),
@@ -685,6 +708,7 @@ export class Efood {
       // the request may have arrived, so it must not be retried blindly.
       if (err instanceof EfoodError && err.code === 'network_error') {
         this.store.logOrder({ ...logEntry, outcome: 'unknown', error: err.message });
+        this.log.error({ ...about, reason: err.message }, 'order sent but the connection failed: outcome unknown');
         onSent?.('');
         throw new EfoodError(
           'outcome_unknown',
@@ -700,6 +724,7 @@ export class Efood {
       // that is done, so the favourite stays free to retry. The link carries a
       // token, so only its address without the query goes in the log.
       this.store.logOrder({ ...logEntry, outcome: 'confirmation_required', confirmationPage: redirect.split('?')[0] });
+      this.log.warn(about, 'the bank wants the card payment confirmed: no order yet');
       const pending: PendingConfirmation = { url: redirect, shopId, shopName: menu.shop.name, total, favorite: label, knownOrderIds };
       throw new EfoodError(
         'confirmation_required',
@@ -710,6 +735,7 @@ export class Efood {
     this.store.logOrder({ ...logEntry, orderId, response: submitted });
     onSent?.(orderId);
     if (!orderId) {
+      this.log.error(about, 'efood accepted the order request but returned no order id: outcome unknown');
       throw new EfoodError(
         'outcome_unknown',
         'efood accepted the request but returned no order id; the payment may need confirming. Check the efood app before ordering again.',
@@ -718,6 +744,7 @@ export class Efood {
     }
     // What was really charged: efood can add a service fee that its validation did not quote.
     const charged = asRecord(submitted.information).price;
+    this.log.info({ ...about, orderId, charged }, 'order placed');
     return { ...result, total: typeof charged === 'number' ? charged : total, orderId, response: submitted };
   }
 
@@ -737,6 +764,7 @@ export class Efood {
       const recent = await this.orders({ limit: 10 });
       const found = recent.find((o) => o.shopId === pending.shopId && o.id !== undefined && !known.has(o.id));
       if (found) {
+        this.log.info({ favorite: pending.favorite, shopId: pending.shopId, orderId: found.id, total: found.total }, 'order appeared after the bank confirmation');
         this.store.logOrder({ time: this.now().toISOString(), favorite: pending.favorite, shopId: pending.shopId, orderId: String(found.id), outcome: 'confirmed' });
         if (pending.favorite) {
           const state = this.store.state();

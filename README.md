@@ -1,6 +1,6 @@
 # efood-api
 
-Unofficial client for efood.gr: a TypeScript library, a command-line tool, and a small HTTP service for automations (anything that can send an HTTP request). No runtime dependencies; Node 20 or newer.
+Unofficial client for efood.gr: a TypeScript library, a command-line tool, and a small HTTP service for automations (anything that can send an HTTP request). Node 20 or newer; the only runtime dependencies are for logging (pino).
 
 With it you can log in, list past orders, browse shops and menus, fill the cart and place an order, either by hand or on a schedule.
 
@@ -89,6 +89,59 @@ You can also build the cart in the efood app and then run `efood fav save`: the 
 
 Required options are never guessed: if an item needs a size or a sweetness and you did not give one, `cart add` fails and lists the choices.
 
+## Logging
+
+Logging is off by default (the service logs at `info`). Turn it on to see what the client is doing: how many calls it made to efood, to which endpoints, how long they took and what came back.
+
+```sh
+efood orders -v                                  # one line per efood call, plus a summary
+efood checkout 4489803 --log-level trace         # also the request and response bodies
+efood fav order coffee --yes --log-file efood.log --log-level debug
+```
+
+| Level | What is logged |
+|---|---|
+| `silent` | Nothing |
+| `error` | Failures of the tool itself, and orders whose outcome is unknown |
+| `warn` | Failed or retried efood calls, commands that failed and why, refused service requests, a bank confirmation request |
+| `info` | Orders (dry run, placing, placed), session changes, each service request, a summary of the efood calls made |
+| `debug` | One line per efood call: method, path, query, HTTP status, duration, size |
+| `trace` | The same plus request and response bodies (large ones are cut short) |
+
+Set it with flags or with the environment (also from `.env`):
+
+| Flag | Variable | Meaning |
+|---|---|---|
+| `--log-level <level>`, `-v` for `debug` | `EFOOD_LOG_LEVEL` | How much to log |
+| `--log-file <path>` | `EFOOD_LOG_FILE` | Append to a file instead of writing to stderr. A relative path in the variable is inside the project folder; one given to the flag is relative to where you run the command |
+| | `EFOOD_LOG_FORMAT` | `pretty` (one readable line per entry: time, level, a sentence, then the details), `expanded` (the same with the details listed underneath, one per line) or `json` (one object per line, for tools). Default: `pretty` on a terminal, `json` otherwise |
+
+To log every command without typing flags, put the variables in `.env`:
+
+```
+EFOOD_LOG_LEVEL=debug
+EFOOD_LOG_FILE=./data/efood.log
+EFOOD_LOG_FORMAT=pretty
+```
+
+A `pretty` entry looks like this:
+
+```
+[13:50:10.076] DEBUG: POST /api/carts/retrieve -> 200 in 260 ms {"call":1,"method":"POST","host":"www.e-food.gr","path":"/api/carts/retrieve","auth":true,"httpStatus":200,"ms":260,"bytes":9124}
+```
+
+A log file is appended to and never trimmed, so delete it when it gets long. Logs go to stderr unless a file is set, so `--json` output stays clean. The session id, card payment tokens and the token in a bank confirmation link are removed before anything is written, and request headers are never logged. Bodies logged at `trace` still contain personal data (addresses, order contents, masked card numbers), so do not share a trace log as it is.
+
+In the library, pass your own pino logger, or let it read the variables above; `efood.requestStats()` returns the call counts:
+
+```ts
+import { Efood, createLogger } from 'efood-api';
+
+const efood = new Efood({ logger: createLogger({ level: 'debug', file: 'efood.log' }) });
+await efood.orders();
+efood.requestStats();   // { requests, failed, retries, totalMs, byEndpoint }
+```
+
 ## Library
 
 ```ts
@@ -126,7 +179,8 @@ Settings, from the environment or `.env`:
 | `EFOOD_API_TOKEN` | Token callers must send. Required. | none |
 | `EFOOD_PORT` | Port to listen on | `8787` |
 | `EFOOD_HOST` | Interface to listen on | `0.0.0.0` |
-| `EFOOD_DATA_DIR` | Where the session, favourites and order log are kept | `data/` in the project |
+| `EFOOD_DATA_DIR` | Where the session, favourites and order log are kept. A relative path is inside the project folder | `data/` in the project |
+| `EFOOD_LOG_LEVEL`, `EFOOD_LOG_FILE`, `EFOOD_LOG_FORMAT` | Logging, see [Logging](#logging) | `info` for the service, to stderr |
 
 Every request needs `Authorization: Bearer <EFOOD_API_TOKEN>`.
 
@@ -210,4 +264,4 @@ rest:
 npm test          # compiles, then runs the tests against saved fixtures; no network
 ```
 
-Layout: `src/efood/` is the HTTP layer (client, endpoints, parsers), `src/cart/` builds cart lines and order payloads, `src/index.ts` is the public `Efood` class, `src/cli.ts` and `src/server.ts` sit on top of it.
+Layout: `src/efood/` is the HTTP layer (client, endpoints, parsers), `src/log.ts` sets up logging and removes secrets from what is logged, `src/cart/` builds cart lines and order payloads, `src/index.ts` is the public `Efood` class, `src/cli.ts` and `src/server.ts` sit on top of it.

@@ -194,14 +194,38 @@ export function createEfoodServer(options: ServerOptions): Server {
     send(res, 404, { error: 'not_found', message: `No route for ${req.method} ${url.pathname}.` });
   }
 
+  const log = efood.log;
   return createServer((req, res) => {
+    const started = Date.now();
+    const callsBefore = efood.requestStats().requests;
+    let failure: string | undefined;
+    // One line per request. The path only: bodies and headers can hold the session id or the bearer token.
+    res.on('finish', () => {
+      const fields = {
+        method: req.method,
+        path: (req.url ?? '/').split('?')[0],
+        status: res.statusCode,
+        ms: Date.now() - started,
+        efoodCalls: efood.requestStats().requests - callsBefore,
+        error: failure,
+        from: req.socket.remoteAddress,
+      };
+      const line = `${req.method} ${fields.path} -> ${res.statusCode} in ${fields.ms} ms`;
+      if (res.statusCode >= 500) log.error(fields, line);
+      else if (res.statusCode >= 400) log.warn(fields, line);
+      else log.info(fields, line);
+    });
     if (!tokenMatches(req.headers.authorization, token)) {
+      failure = 'unauthorized';
       return send(res, 401, { error: 'unauthorized', message: 'Missing or wrong bearer token.' });
     }
     route(req, res).catch((err: unknown) => {
       if (err instanceof EfoodError) {
+        failure = err.code;
         return send(res, STATUS_BY_CODE[err.code] ?? 500, err.toJSON());
       }
+      failure = 'internal_error';
+      log.error({ err }, 'unexpected error handling a request');
       console.error(err);
       send(res, 500, { error: 'internal_error', message: 'Unexpected error; see the service log.' });
     });

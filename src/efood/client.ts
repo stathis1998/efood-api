@@ -6,6 +6,7 @@
  * This client turns that into either the parsed `data` payload or a thrown
  * `EfoodError` with a stable code.
  */
+import { loggable, type Logger } from '../log.js';
 import { EfoodError } from './errors.js';
 
 export interface ClientConfig {
@@ -17,6 +18,29 @@ export interface ClientConfig {
   acceptLanguage?: string;
   /** Injectable for tests. */
   fetch?: typeof fetch;
+  /** Where calls are logged; nothing is logged without it. */
+  logger?: Logger;
+}
+
+/** Counts of the efood calls made by one client, for a summary or for debugging. */
+export interface RequestStats {
+  /** Calls made, counting each one once however many times it was retried. */
+  requests: number;
+  /** Calls that ended in an error. */
+  failed: number;
+  /** Extra attempts after a rate limit. */
+  retries: number;
+  /** Time spent waiting for efood, in ms (the pause between calls is not counted). */
+  totalMs: number;
+  byEndpoint: Record<string, { requests: number; failed: number; totalMs: number }>;
+}
+
+/** What one call did, filled in as it goes so a failure can still be logged. */
+interface Exchange {
+  attempts: number;
+  httpStatus?: number;
+  bytes?: number;
+  response?: unknown;
 }
 
 export interface EfoodEnvelope<T = unknown> {
@@ -58,6 +82,8 @@ export class EfoodClient {
   private lastRequestAt = 0;
   /** Tail of the request queue: keeps requests sequential and spaced out. */
   private queue: Promise<unknown> = Promise.resolve();
+  private calls = 0;
+  private readonly counts: RequestStats = { requests: 0, failed: 0, retries: 0, totalMs: 0, byEndpoint: {} };
 
   constructor(private readonly config: ClientConfig) {}
 
@@ -67,6 +93,11 @@ export class EfoodClient {
 
   hasSession(): boolean {
     return Boolean(this.sessionId);
+  }
+
+  /** How many efood calls this client has made so far. */
+  stats(): RequestStats {
+    return structuredClone(this.counts);
   }
 
   request<T = unknown>(
@@ -94,7 +125,67 @@ export class EfoodClient {
     return url.toString();
   }
 
+  /** One call, counted and logged. Headers are never logged: they hold the session id. */
   private async send<T>(method: 'GET' | 'POST', path: string, options: RequestOptions): Promise<T> {
+    const log = this.config.logger;
+    const call = (this.calls += 1);
+    const host = new URL(options.baseUrl ?? this.config.baseUrl).host;
+    const exchange: Exchange = { attempts: 0 };
+    const started = Date.now();
+    let failure: EfoodError | undefined;
+    try {
+      return await this.exchange<T>(method, path, options, exchange);
+    } catch (err) {
+      if (err instanceof EfoodError) failure = err;
+      throw err;
+    } finally {
+      const ms = Date.now() - started;
+      const failed = failure !== undefined || exchange.httpStatus === undefined;
+      // A call refused before anything was sent (no session) is logged but not counted.
+      if (exchange.attempts > 0) {
+        const key = `${method} ${path}`;
+        const endpoint = (this.counts.byEndpoint[key] ??= { requests: 0, failed: 0, totalMs: 0 });
+        endpoint.requests += 1;
+        endpoint.totalMs += ms;
+        this.counts.requests += 1;
+        this.counts.totalMs += ms;
+        this.counts.retries += exchange.attempts - 1;
+        if (failed) {
+          endpoint.failed += 1;
+          this.counts.failed += 1;
+        }
+      }
+      if (log) {
+        const fields: Record<string, unknown> = {
+          call,
+          method,
+          host,
+          path,
+          query: options.query && Object.keys(options.query).length ? options.query : undefined,
+          auth: options.auth ? Boolean(this.sessionId) : undefined,
+          httpStatus: exchange.httpStatus,
+          ms,
+          bytes: exchange.bytes,
+          attempts: exchange.attempts > 1 ? exchange.attempts : undefined,
+        };
+        if (failure) {
+          fields.error = failure.code;
+          fields.apiCode = failure.apiCode;
+          fields.reason = failure.message;
+        }
+        if (log.isLevelEnabled('trace')) {
+          if (options.body !== undefined) fields.requestBody = loggable(options.body);
+          if (exchange.response !== undefined) fields.response = loggable(exchange.response);
+        }
+        const line = `${method} ${path} -> ${failure ? failure.code : exchange.httpStatus} in ${ms} ms`;
+        if (failed) log.warn(fields, line);
+        else if (log.isLevelEnabled('trace')) log.trace(fields, line);
+        else log.debug(fields, line);
+      }
+    }
+  }
+
+  private async exchange<T>(method: 'GET' | 'POST', path: string, options: RequestOptions, exchange: Exchange): Promise<T> {
     const headers: Record<string, string> = {
       Accept: 'application/json',
       'User-Agent': this.config.userAgent,
@@ -124,6 +215,7 @@ export class EfoodClient {
     let response: Response;
     for (let attempt = 0; ; attempt++) {
       await this.throttle();
+      exchange.attempts = attempt + 1;
       try {
         response = await doFetch(url, {
           method,
@@ -135,6 +227,7 @@ export class EfoodClient {
         const reason = err instanceof Error ? err.message : String(err);
         throw new EfoodError('network_error', `Network error calling efood: ${reason}`);
       }
+      exchange.httpStatus = response.status;
       if (response.status !== 429) break;
       // Only reads are retried: a write is never sent twice.
       if (method !== 'GET' || attempt >= MAX_RATE_LIMIT_RETRIES) {
@@ -148,11 +241,14 @@ export class EfoodClient {
     }
 
     const text = await response.text();
+    exchange.bytes = text.length;
     let envelope: EfoodEnvelope<T> | null = null;
     if (text) {
       try {
         envelope = JSON.parse(text) as EfoodEnvelope<T>;
+        exchange.response = envelope;
       } catch {
+        exchange.response = text.slice(0, 300);
         // An HTML page instead of JSON: a Cloudflare challenge or a proxy error.
         throw new EfoodError(
           'blocked',

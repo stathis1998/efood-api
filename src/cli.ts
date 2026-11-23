@@ -2,11 +2,13 @@
 /**
  * Command line for the efood client. `efood help` lists the commands.
  */
+import { isAbsolute, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { spawn } from 'node:child_process';
 import { Efood, EfoodError, type CartLine, type OrderResult, type PendingConfirmation } from './index.js';
+import { createLogger, LOG_LEVELS, logOptionsFromEnv, parseLogLevel } from './log.js';
 import { createEfoodServer } from './server.js';
 
 const HELP = `efood - unofficial efood.gr client
@@ -51,6 +53,13 @@ Payment is cash on delivery unless --pay card; --card picks a saved card by its
 last four digits (default: the account's default card).
 <item> is an item code (IT_...) or a name. Add --json to any command for raw output.
 Colours are used on a terminal; turn them off with --no-color or NO_COLOR=1.
+
+Logging (off by default; the service logs at "info")
+  --log-level silent|error|warn|info|debug|trace    or EFOOD_LOG_LEVEL
+  --verbose, -v                   same as --log-level debug: one line per efood call
+  --log-file <path>               append logs to a file instead of stderr (EFOOD_LOG_FILE)
+  EFOOD_LOG_FORMAT=pretty|expanded|json            how log entries are written
+  "trace" adds request and response bodies; secrets are removed, personal data is not.
 Get the session id from the browser: log in on e-food.gr, open the console
 and run  window.app.userSid  (or copy the "sparks-sid" cookie).`;
 
@@ -59,6 +68,9 @@ const { values: flags, positionals } = parseArgs({
   options: {
     json: { type: 'boolean' },
     'no-color': { type: 'boolean' },
+    verbose: { type: 'boolean', short: 'v' },
+    'log-level': { type: 'string' },
+    'log-file': { type: 'string' },
     yes: { type: 'boolean' },
     force: { type: 'boolean' },
     dry: { type: 'boolean' },
@@ -249,7 +261,34 @@ async function main(): Promise<void> {
     // No .env file is fine.
   }
 
-  const efood = new Efood();
+  // Relative paths in the settings mean "inside the project folder", whichever
+  // folder the command is run from.
+  const root = fileURLToPath(new URL('../../', import.meta.url));
+  for (const name of ['EFOOD_DATA_DIR', 'EFOOD_LOG_FILE']) {
+    const value = process.env[name]?.trim();
+    if (value && !isAbsolute(value)) process.env[name] = resolve(root, value);
+  }
+  const fromEnv = logOptionsFromEnv();
+  const asked = flags['log-level'];
+  if (asked !== undefined && !parseLogLevel(asked)) fail(`--log-level must be one of: ${LOG_LEVELS.join(', ')}.`);
+  const logger = createLogger({
+    ...fromEnv,
+    level: (asked ? parseLogLevel(asked) : undefined) ?? (flags.verbose ? 'debug' : undefined) ?? fromEnv.level ?? (command === 'serve' ? 'info' : 'silent'),
+    file: flags['log-file'] ?? fromEnv.file,
+  });
+  const efood = new Efood({ logger });
+  logFailure = (err) => {
+    if (err instanceof EfoodError) logger.warn({ error: err.code, command: positionals.join(' ') }, `command failed: ${err.message}`);
+    else logger.error({ err, command: positionals.join(' ') }, 'command failed unexpectedly');
+  };
+  summary = () => {
+    const s = efood.requestStats();
+    if (!s.requests) return;
+    logger.info(
+      { requests: s.requests, failed: s.failed, retries: s.retries, totalMs: s.totalMs, byEndpoint: logger.isLevelEnabled('debug') ? s.byEndpoint : undefined },
+      `${s.requests} efood ${s.requests === 1 ? "call" : "calls"} (${s.failed} failed) in ${s.totalMs} ms`,
+    );
+  };
   const out = (value: unknown, human: () => void) => {
     if (flags.json) console.log(JSON.stringify(value, null, 2));
     else human();
@@ -487,6 +526,7 @@ async function main(): Promise<void> {
       const host = flags.host ?? process.env.EFOOD_HOST ?? '0.0.0.0';
       createEfoodServer({ efood, token }).listen(port, host, () => {
         console.log(`efood service listening on ${cyan(`http://${host}:${port}`)}`);
+        logger.info({ host, port, session: efood.hasSession() }, 'efood service started');
         if (!efood.hasSession()) console.log(yellow('No session saved yet: POST /session or run `efood login`.'));
       });
       return;
@@ -496,7 +536,13 @@ async function main(): Promise<void> {
   }
 }
 
+/** Logs how many efood calls the command made. Set once the logger exists. */
+let summary: () => void = () => {};
+/** Logs why a command failed, so a log file tells the whole story. */
+let logFailure: (err: unknown) => void = () => {};
+
 main().catch((err: unknown) => {
+  logFailure(err);
   if (err instanceof EfoodError) {
     console.error(`${errRed(`Error (${err.code}):`)} ${err.message}`);
     const details = err.details as { tiers?: Array<{ tier: string; options: Array<{ name: string }> }>; candidates?: Array<{ code?: string; name?: string }> } | undefined;
@@ -511,4 +557,7 @@ main().catch((err: unknown) => {
     console.error(err);
   }
   process.exitCode = 1;
+}).finally(() => {
+  // The service keeps running and logs each request instead.
+  if (positionals[0] !== 'serve') summary();
 });
