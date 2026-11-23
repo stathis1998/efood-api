@@ -4,6 +4,8 @@ Unofficial client for efood.gr: a TypeScript library, a command-line tool, and a
 
 With it you can log in, list past orders, browse shops and menus, fill the cart and place an order, either by hand or on a schedule.
 
+<p align="center"><img src="docs/cli.svg" alt="Coloured output of the efood command line: a shop's menu filtered by name, then the option groups of one item" width="534"></p>
+
 It is not affiliated with efood. It talks to the same endpoints the efood app and website use, which can change without notice. Use it with your own account, at your own risk.
 
 ## Status

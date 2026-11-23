@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="534" height="958" viewBox="0 0 534 958" role="img" aria-label="Coloured output of the efood command line">
+  <rect width="534" height="958" rx="10" fill="#0d1117"/>
+  <circle cx="22" cy="20" r="6" fill="#ff5f56"/><circle cx="42" cy="20" r="6" fill="#ffbd2e"/><circle cx="62" cy="20" r="6" fill="#27c93f"/>
+  <g font-family="ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace" font-size="14" xml:space="preserve">
+  <text x="18.0" y="60" fill="#8b949e">$</text>
+  <text x="34.9" y="60" fill="#e6edf3" font-weight="700">efood menu 4489803 --q freddo</text>
+  <text x="18.0" y="80" fill="#56d4dd" font-weight="700">Badger coffee</text>
+  <text x="144.4" y="80" fill="#56d364">open</text>
+  <text x="195.0" y="80" fill="#e6edf3">min</text>
+  <text x="228.8" y="80" fill="#e3b341">0.00€</text>
+  <text x="287.8" y="80" fill="#e6edf3">delivery</text>
+  <text x="363.6" y="80" fill="#e3b341">0.00€</text>
+  <text x="18.0" y="120" fill="#e6edf3" font-weight="700">Δημοφιλέστερα</text>
+  <text x="34.9" y="140" fill="#e6edf3" opacity="0.6">IT_000000000275</text>
+  <text x="178.2" y="140" fill="#e6edf3">Freddo espresso</text>
+  <text x="338.3" y="140" fill="#e3b341">2.50€</text>
+  <text x="34.9" y="160" fill="#e6edf3" opacity="0.6">IT_000000000276</text>
+  <text x="178.2" y="160" fill="#e6edf3">Freddo cappuccino</text>
+  <text x="338.3" y="160" fill="#e3b341">2.70€</text>
+  <text x="18.0" y="200" fill="#e6edf3" font-weight="700">Κρύοι καφέδες</text>
+  <text x="34.9" y="220" fill="#e6edf3" opacity="0.6">IT_000000000275</text>
+  <text x="178.2" y="220" fill="#e6edf3">Freddo espresso</text>
+  <text x="473.2" y="220" fill="#e3b341">2.50€</text>
+  <text x="34.9" y="240" fill="#e6edf3" opacity="0.6">IT_000000000276</text>
+  <text x="178.2" y="240" fill="#e6edf3">Freddo cappuccino</text>
+  <text x="473.2" y="240" fill="#e3b341">2.70€</text>
+  <text x="34.9" y="260" fill="#e6edf3" opacity="0.6">IT_000000000277</text>
+  <text x="178.2" y="260" fill="#e6edf3">Freddo cappuccino με φυτική κρέμα</text>
+  <text x="473.2" y="260" fill="#e3b341">2.90€</text>
+  <text x="34.9" y="280" fill="#e6edf3" opacity="0.6">IT_000000000279</text>
+  <text x="178.2" y="280" fill="#e6edf3">Freddo flat white</text>
+  <text x="473.2" y="280" fill="#e3b341">2.90€</text>
+  <text x="18.0" y="320" fill="#8b949e">$</text>
+  <text x="34.9" y="320" fill="#e6edf3" font-weight="700">efood options 4489803 "freddo espresso"</text>
+  <text x="18.0" y="340" fill="#56d4dd" font-weight="700">Freddo espresso</text>
+  <text x="152.9" y="340" fill="#e6edf3" opacity="0.6">[IT_000000000275]</text>
+  <text x="313.1" y="340" fill="#e3b341">2.50€</text>
+  <text x="18.0" y="380" fill="#e6edf3" font-weight="700">Επιλέξτε μέγεθος</text>
+  <text x="169.7" y="380" fill="#e3b341">(choose one)</text>
+  <text x="34.9" y="400" fill="#e6edf3" opacity="0.6">515.1894</text>
+  <text x="119.2" y="400" fill="#e6edf3">Regular</text>
+  <text x="380.5" y="400" fill="#e3b341">+2.40€</text>
+  <text x="34.9" y="420" fill="#e6edf3" opacity="0.6">515.1895</text>
+  <text x="119.2" y="420" fill="#e6edf3">Grande (με 4 δόσεις espresso)</text>
+  <text x="380.5" y="420" fill="#e3b341">+3.90€</text>
+  <text x="18.0" y="460" fill="#e6edf3" font-weight="700">Επιλέξτε ζάχαρη</text>
+  <text x="161.3" y="460" fill="#e3b341">(choose one)</text>
+  <text x="34.9" y="480" fill="#e6edf3" opacity="0.6">945.28662</text>
+  <text x="127.6" y="480" fill="#e6edf3">Πολύ γλυκός</text>
+  <text x="34.9" y="500" fill="#e6edf3" opacity="0.6">945.28663</text>
+  <text x="127.6" y="500" fill="#e6edf3">Γλυκός</text>
+  <text x="34.9" y="520" fill="#e6edf3" opacity="0.6">945.28664</text>
+  <text x="127.6" y="520" fill="#e6edf3">Μέτριος προς γλυκό</text>
+  <text x="34.9" y="540" fill="#e6edf3" opacity="0.6">945.28665</text>
+  <text x="127.6" y="540" fill="#e6edf3">Μέτριος</text>
+  <text x="34.9" y="560" fill="#e6edf3" opacity="0.6">945.28666</text>
+  <text x="127.6" y="560" fill="#e6edf3">Με ολίγη</text>
+  <text x="34.9" y="580" fill="#e6edf3" opacity="0.6">945.28667</text>
+  <text x="127.6" y="580" fill="#e6edf3">Σκέτος</text>
+  <text x="18.0" y="620" fill="#e6edf3" font-weight="700">Επιλέξτε είδος ζάχαρης</text>
+  <text x="220.3" y="620" fill="#e6edf3" opacity="0.6">(optional)</text>
+  <text x="34.9" y="640" fill="#e6edf3" opacity="0.6">946.28668</text>
+  <text x="127.6" y="640" fill="#e6edf3">Λευκή ζάχαρη</text>
+  <text x="34.9" y="660" fill="#e6edf3" opacity="0.6">946.28669</text>
+  <text x="127.6" y="660" fill="#e6edf3">Καστανή ζάχαρη</text>
+  <text x="34.9" y="680" fill="#e6edf3" opacity="0.6">946.28670</text>
+  <text x="127.6" y="680" fill="#e6edf3">Ζαχαρίνη</text>
+  <text x="34.9" y="700" fill="#e6edf3" opacity="0.6">946.28671</text>
+  <text x="127.6" y="700" fill="#e6edf3">Stevia</text>
+  <text x="18.0" y="740" fill="#e6edf3" font-weight="700">Προσθέστε</text>
+  <text x="110.7" y="740" fill="#e6edf3" opacity="0.6">(optional)</text>
+  <text x="34.9" y="760" fill="#e6edf3" opacity="0.6">947.28672</text>
+  <text x="127.6" y="760" fill="#e6edf3">Γάλα φρέσκο</text>
+  <text x="34.9" y="780" fill="#e6edf3" opacity="0.6">947.28673</text>
+  <text x="127.6" y="780" fill="#e6edf3">Γάλα εβαπορέ</text>
+  <text x="34.9" y="800" fill="#e6edf3" opacity="0.6">947.28674</text>
+  <text x="127.6" y="800" fill="#e6edf3">Γάλα σόγιας</text>
+  <text x="262.5" y="800" fill="#e3b341">+0.30€</text>
+  <text x="34.9" y="820" fill="#e6edf3" opacity="0.6">947.28675</text>
+  <text x="127.6" y="820" fill="#e6edf3">Γάλα αμυγδάλου</text>
+  <text x="262.5" y="820" fill="#e3b341">+0.30€</text>
+  <text x="18.0" y="860" fill="#e6edf3" font-weight="700">Προσθέστε extra</text>
+  <text x="161.3" y="860" fill="#e6edf3" opacity="0.6">(optional)</text>
+  <text x="34.9" y="880" fill="#e6edf3" opacity="0.6">948.28683</text>
+  <text x="127.6" y="880" fill="#e6edf3">Extra δόση espresso</text>
+  <text x="304.6" y="880" fill="#e3b341">+0.60€</text>
+  <text x="18.0" y="920" fill="#e6edf3" font-weight="700">Επιλογή</text>
+  <text x="93.9" y="920" fill="#e6edf3" opacity="0.6">(optional)</text>
+  <text x="34.9" y="940" fill="#e6edf3" opacity="0.6">949.28684</text>
+  <text x="127.6" y="940" fill="#e6edf3">Decaffeine</text>
+  </g>
+</svg>
