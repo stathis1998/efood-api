@@ -4,6 +4,7 @@
   "description": "Unofficial efood.gr client for personal use: library, CLI and a small HTTP service for Home Assistant.",
   "type": "module",
   "private": true,
+  "license": "MIT",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
   "bin": {
