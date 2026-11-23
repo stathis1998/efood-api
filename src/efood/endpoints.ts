@@ -6,9 +6,10 @@
  *    The older v1 shop/menu endpoints stopped answering anonymous calls.
  *  - account, addresses, history, validate, saved cart, saved cards, status:
  *    verified live with a real session.
- *  - submit: verified live with one real card order. It answers with an
- *    `order_id`, or with a `redirect` to a confirmation page when the bank
- *    wants the payment approved (3-D Secure). Cash has not been run for real.
+ *  - submit: verified live with real orders, one paid by card and one with
+ *    cash on delivery. It answers with an `order_id`, or, for a card, with a
+ *    `redirect` to a confirmation page when the bank wants the payment
+ *    approved (3-D Secure).
  */
 import type { EfoodClient } from './client.js';
 import type { OrderPayload, Raw } from './types.js';
